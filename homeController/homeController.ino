@@ -19,6 +19,7 @@
 // Found this resource that cleared things up
 // https://lastminuteengineers.com/28byj48-stepper-motor-arduino-tutorial/
 Stepper stepper(STEPS, STEPPER_IN1, STEPPER_IN2, STEPPER_IN3, STEPPER_IN4);
+int stepperPos = 0; // Blinds are closed
 
 //  DC Motor
 #define MOTORENABLE 6
@@ -28,6 +29,8 @@ Stepper stepper(STEPS, STEPPER_IN1, STEPPER_IN2, STEPPER_IN3, STEPPER_IN4);
 //  Servo
 #define SERVO_PIN 9
 Servo servo;
+int servoPos = 90;
+bool servoDir = false;
 
 //  PhotoResistor
 #define LIGHT_PIN 0// analog pin
@@ -40,12 +43,14 @@ float* temp;
 float* humidity;
 DHT_nonblocking dht(HEAT_PIN, DHT_TYPE);
 
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  servo.attach(SERVOPIN);
-  servo.write(90);
+  servo.attach(SERVO_PIN);
+  servo.write(servoPos);
 }
+
 
 void loop() {
   // put your main code here, to run repeatedly:
@@ -78,7 +83,7 @@ void loop() {
       servo.write(90);
       delay(500);
       servo.write(180);
-      delay(500)
+      delay(500);
       servo.write(90);
       delay(500);
     } else if (TEST_NUM == 4){
@@ -86,6 +91,25 @@ void loop() {
     }
   } else {
     //    MAIN
+
+    // Get Light level
+    lightLevel = normalizeLightReading(analogRead(LIGHT_PIN));
+    
+    // Get heat level
+    dht.measure(temp, humidity);
+    // Move stepper to position
+    stepper.step(stepperPos - lightToBlindPos(lightLevel)*STEPS);
+    
+    // Spin fan
+    analogWrite(MOTORENABLE, tempToFanSpeed(tempConversion(temp)));
+    // adjust servo position for back and forth motion
+    if(servoPos == 255 || servoDir == 0) servoDir = !servoDir;
+    if(servoDir){
+      servoPos += 5;
+    } else {
+      servoPos -= 5;
+    }
+    servo.write(servoPos);
   }
   
    
@@ -96,8 +120,8 @@ int normalizeLightReading(int value) {
 }
 
 // Returns a position for the blind to turn to based on intensity of light
-int lightToBlindPos(){
-  
+int lightToBlindPos(int lightLevel){
+  return map(lightLevel, 0, 100, 0, 5);
 }
 
 // Returns the desired speed of the fan based on heat in the room
@@ -109,3 +133,13 @@ int tempToFanSpeed(float f){
 float tempConversion(int c){
   return (c*1.8) + 32;
 }
+
+
+
+// Twisty bit
+// 8.7 mm wide x 3.1 deep
+// 7.4 mm high
+
+// Stepper attatchment
+// 4.8 wide x 3 deep
+// 7.6 high
