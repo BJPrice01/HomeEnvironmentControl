@@ -3,16 +3,17 @@
 #include "dht_nonblocking.h"
 
 //  TESTING CONTROLS
-#define TESTING 1
-#define TEST_NUM 0
+#define TESTING 0
+#define TEST_NUM 1
+
 
 //      GLOBAL VARIABLES
 
 //  Stepper
 //if motor doesn't reverse direction, try switching IN2 and IN3
 #define STEPPER_IN1 2
-#define STEPPER_IN2 4
-#define STEPPER_IN3 3
+#define STEPPER_IN2 3
+#define STEPPER_IN3 4
 #define STEPPER_IN4 5 
 #define STEPS  2038   // Number of steps per revolution
 // Was having issues getting this to line up correctly
@@ -49,6 +50,13 @@ void setup() {
   Serial.begin(9600);
   servo.attach(SERVO_PIN);
   servo.write(servoPos);
+  stepper.setSpeed(10);
+  pinMode(MOTORENABLE, OUTPUT);
+  pinMode(MOTORDIRA, OUTPUT);
+  pinMode(MOTORDIRB, OUTPUT);
+  digitalWrite(MOTORDIRA, LOW);
+  digitalWrite(MOTORDIRB, HIGH);
+  dht.measure(temp, humidity);
 }
 
 
@@ -61,12 +69,15 @@ void loop() {
     if (TEST_NUM == 0){
       // light
       lightLevel = normalizeLightReading(analogRead(LIGHT_PIN)); //Returns a value between 0 and 1023 for the UNO
+      Serial.println(lightLevel);
+      delay(100);
     } else if (TEST_NUM == 1){
       // temp
-      if (dht.measure(temp, humidity)){
+      if (dht.measure(temp, humidity) == true){
       Serial.print("The temperature is :");
       Serial.println(*temp);
-     }
+     } else Serial.println(*temp);
+     delay(100);
     } else if (TEST_NUM == 2){
       // stepper
       stepper.setSpeed(10);
@@ -88,8 +99,23 @@ void loop() {
       delay(500);
     } else if (TEST_NUM == 4){
       // dc motor
-    }
-  } else {
+      if(servoPos == 255 || servoDir == 0) servoDir = !servoDir;
+      if(servoDir){
+        servoPos += 51;
+      } else {
+        servoPos -= 51;
+      }
+      digitalWrite(MOTORDIRA, LOW);
+      digitalWrite(MOTORDIRB, HIGH);
+      analogWrite(MOTORENABLE, servoPos);
+      //digitalWrite(MOTORENABLE, HIGH);
+      delay(1000);
+    } else if (TEST_NUM == 5){
+    stepper.step(STEPS);
+    delay(1000);
+    stepper.step(-STEPS);
+  }}
+  else{
     //    MAIN
 
     // Get Light level
@@ -97,22 +123,32 @@ void loop() {
     
     // Get heat level
     dht.measure(temp, humidity);
-    // Move stepper to position
-    stepper.step(stepperPos - lightToBlindPos(lightLevel)*STEPS);
-    
     // Spin fan
-    analogWrite(MOTORENABLE, tempToFanSpeed(tempConversion(temp)));
+    analogWrite(MOTORENABLE, tempToFanSpeed(tempConversion(*temp)));
     // adjust servo position for back and forth motion
-    if(servoPos == 255 || servoDir == 0) servoDir = !servoDir;
-    if(servoDir){
+    if(servoDir == true){
       servoPos += 5;
-    } else {
+      if (servoPos >= 180) servoDir = false;
+    } else{
       servoPos -= 5;
-    }
-    servo.write(servoPos);
+      if (servoPos <= 0) servoDir = true;
+    }    
+    // Move stepper to position
+    // 10 positions
+    // half turn between each
+    /*
+    Serial.print("CurrentPos: ");
+    Serial.println(stepperPos);
+    Serial.print("DesiredPos: ");
+    Serial.println(lightToBlindPos(lightLevel));
+    Serial.print("Difference: ");
+    int nextPos = lightToBlindPos(lightLevel);
+    Serial.println(nextPos - stepperPos);
+    stepper.step(nextPos - stepperPos*STEPS/2);
+    stepperPos = nextPos - stepperPos;
+    */
+    delay(250);
   }
-  
-   
 }
 //  Returns a value for the light reading between 0 (dark) and 100 (bright)
 int normalizeLightReading(int value) {
@@ -121,12 +157,20 @@ int normalizeLightReading(int value) {
 
 // Returns a position for the blind to turn to based on intensity of light
 int lightToBlindPos(int lightLevel){
-  return map(lightLevel, 0, 100, 0, 5);
+  int returnVal = 10 - map(lightLevel, 0, 100, 0, 10);
+  if (returnVal > 10) return 10;
+  if (returnVal < 0) return 0;
+  return returnVal;
 }
 
 // Returns the desired speed of the fan based on heat in the room
 int tempToFanSpeed(float f){
-  return map(f, 70, 100, 0, 255);
+  int returnVal = map(f, 70, 100, 0, 255) + 100;
+  if (returnVal > 255) {
+    return 255;
+  } else {
+    return returnVal;
+  }
 }
 
 // Returns temp in farenheight
