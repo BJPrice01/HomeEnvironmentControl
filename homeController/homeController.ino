@@ -26,6 +26,7 @@ int stepperPos = 0; // Blinds are closed
 #define MOTORENABLE 6
 #define MOTORDIRA 7
 #define MOTORDIRB 8
+int motorSpeed = 0;
 
 //  Servo
 #define SERVO_PIN 9
@@ -99,23 +100,19 @@ void loop() {
       delay(500);
     } else if (TEST_NUM == 4){
       // dc motor
-      if(servoPos == 255 || servoDir == 0) servoDir = !servoDir;
-      if(servoDir){
-        servoPos += 51;
-      } else {
-        servoPos -= 51;
-      }
+    if(servoDir == true){
+      motorSpeed += 51;
+      if (motorSpeed >= 255) servoDir = false;
+    } else{
+      motorSpeed -= 51;
+      if (motorSpeed <= 0) servoDir = true;
+    }  
       digitalWrite(MOTORDIRA, LOW);
       digitalWrite(MOTORDIRB, HIGH);
-      analogWrite(MOTORENABLE, servoPos);
-      //digitalWrite(MOTORENABLE, HIGH);
+      analogWrite(MOTORENABLE, motorSpeed);
       delay(1000);
-    } else if (TEST_NUM == 5){
-    stepper.step(STEPS);
-    delay(1000);
-    stepper.step(-STEPS);
-  }}
-  else{
+    }
+  } else {
     //    MAIN
 
     // Get Light level
@@ -123,8 +120,10 @@ void loop() {
     
     // Get heat level
     dht.measure(temp, humidity);
+    
     // Spin fan
     analogWrite(MOTORENABLE, tempToFanSpeed(tempConversion(*temp)));
+    
     // adjust servo position for back and forth motion
     if(servoDir == true){
       servoPos += 5;
@@ -133,20 +132,15 @@ void loop() {
       servoPos -= 5;
       if (servoPos <= 0) servoDir = true;
     }    
+    
     // Move stepper to position
     // 10 positions
     // half turn between each
-    /*
-    Serial.print("CurrentPos: ");
-    Serial.println(stepperPos);
-    Serial.print("DesiredPos: ");
-    Serial.println(lightToBlindPos(lightLevel));
-    Serial.print("Difference: ");
     int nextPos = lightToBlindPos(lightLevel);
-    Serial.println(nextPos - stepperPos);
     stepper.step(nextPos - stepperPos*STEPS/2);
-    stepperPos = nextPos - stepperPos;
-    */
+    stepperPos = nextPos;
+
+    // Delay for time between readings/servo movements
     delay(250);
   }
 }
@@ -166,24 +160,12 @@ int lightToBlindPos(int lightLevel){
 // Returns the desired speed of the fan based on heat in the room
 int tempToFanSpeed(float f){
   int returnVal = map(f, 70, 100, 0, 255) + 100;
-  if (returnVal > 255) {
-    return 255;
-  } else {
-    return returnVal;
-  }
+  if (returnVal > 255) return 255;
+  if (returnVal < 0) return 0;
+  return returnVal;
 }
 
 // Returns temp in farenheight
 float tempConversion(int c){
   return (c*1.8) + 32;
 }
-
-
-
-// Twisty bit
-// 8.7 mm wide x 3.1 deep
-// 7.4 mm high
-
-// Stepper attatchment
-// 4.8 wide x 3 deep
-// 7.6 high
