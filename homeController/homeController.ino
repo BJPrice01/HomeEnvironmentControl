@@ -4,7 +4,7 @@
 
 //  TESTING CONTROLS
 #define TESTING 0
-#define TEST_NUM 1
+#define TEST_NUM 4
 
 
 //      GLOBAL VARIABLES
@@ -57,6 +57,7 @@ void setup() {
   pinMode(MOTORDIRB, OUTPUT);
   digitalWrite(MOTORDIRA, LOW);
   digitalWrite(MOTORDIRB, HIGH);
+  analogWrite(MOTORENABLE, 255);
   dht.measure(temp, humidity);
 }
 
@@ -75,10 +76,10 @@ void loop() {
     } else if (TEST_NUM == 1){
       // temp
       if (dht.measure(temp, humidity) == true){
-      Serial.print("The temperature is :");
-      Serial.println(*temp);
-     } else Serial.println(*temp);
-     delay(100);
+        Serial.print("The temperature is :");
+        Serial.println(*temp);
+       } else Serial.println(*temp);
+       delay(100);
     } else if (TEST_NUM == 2){
       // stepper
       stepper.setSpeed(10);
@@ -100,13 +101,13 @@ void loop() {
       delay(500);
     } else if (TEST_NUM == 4){
       // dc motor
-    if(servoDir == true){
-      motorSpeed += 51;
-      if (motorSpeed >= 255) servoDir = false;
-    } else{
-      motorSpeed -= 51;
-      if (motorSpeed <= 0) servoDir = true;
-    }  
+      if(servoDir == true){
+        motorSpeed += 51;
+        if (motorSpeed >= 255) servoDir = false;
+      } else{
+        motorSpeed -= 51;
+        if (motorSpeed <= 0) servoDir = true;
+      }  
       digitalWrite(MOTORDIRA, LOW);
       digitalWrite(MOTORDIRB, HIGH);
       analogWrite(MOTORENABLE, motorSpeed);
@@ -114,6 +115,8 @@ void loop() {
     }
   } else {
     //    MAIN
+
+    Serial.println(stepperPos);
 
     // Get Light level
     lightLevel = normalizeLightReading(analogRead(LIGHT_PIN));
@@ -125,6 +128,7 @@ void loop() {
     analogWrite(MOTORENABLE, tempToFanSpeed(tempConversion(*temp)));
     
     // adjust servo position for back and forth motion
+    Serial.println(servoPos);
     if(servoDir == true){
       servoPos += 5;
       if (servoPos >= 180) servoDir = false;
@@ -132,13 +136,25 @@ void loop() {
       servoPos -= 5;
       if (servoPos <= 0) servoDir = true;
     }    
+    servo.write(servoPos);
     
     // Move stepper to position
-    // 10 positions
+    // 3 positions
     // half turn between each
     int nextPos = lightToBlindPos(lightLevel);
-    stepper.step(nextPos - stepperPos*STEPS/2);
-    stepperPos = nextPos;
+    /*
+    Serial.print("Current: ");
+    Serial.println(stepperPos);
+    Serial.print("Next: ");
+    Serial.println(nextPos);
+    Serial.print("Difference ");
+    Serial.println(nextPos - stepperPos);
+    */
+    if(nextPos - stepperPos != 0){
+      stepperPos = nextPos;
+      stepper.step(nextPos - stepperPos*(STEPS/2)*5/3);
+    }
+
 
     // Delay for time between readings/servo movements
     delay(250);
@@ -151,15 +167,15 @@ int normalizeLightReading(int value) {
 
 // Returns a position for the blind to turn to based on intensity of light
 int lightToBlindPos(int lightLevel){
-  int returnVal = 10 - map(lightLevel, 0, 100, 0, 10);
-  if (returnVal > 10) return 10;
+  int returnVal = 3 - map(lightLevel, 0, 100, 0, 3);
+  if (returnVal > 3) return 3;
   if (returnVal < 0) return 0;
   return returnVal;
 }
 
 // Returns the desired speed of the fan based on heat in the room
 int tempToFanSpeed(float f){
-  int returnVal = map(f, 70, 100, 0, 255) + 100;
+  int returnVal = map(f, 70, 100, 225, 255);
   if (returnVal > 255) return 255;
   if (returnVal < 0) return 0;
   return returnVal;
